@@ -1,0 +1,14 @@
+identifier	1234
+version	latest
+name	Demo
+description	This is a dataset description
+author	Dr Stephan Heunis	0000-1234-5678
+author	Prof Michael Hanke	9999-1224-3378
+keywords	minimal	example	catalog	from	metadata
+publication	https://doi.org/666	Heunis et al,2022,The best paper ever
+publication	https://doi.org/999	Doe et al,2023,The best paper ever in 2023
+property	Storage	7PB
+property	Source	Open
+sfb1451	Species	Human
+sfb1451	Limb	Leg
+sfb1451	project	Z03
