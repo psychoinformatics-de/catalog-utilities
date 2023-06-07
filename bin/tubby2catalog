@@ -7,6 +7,7 @@ import fileinput
 import json
 import logging
 import subprocess
+import sys
 from typing import List
 
 lgr = logging.getLogger('catalog-utilities')
@@ -108,6 +109,7 @@ def main(metadata_paths: List, metadata_type: str):
 
 def transform_dataset_metadata(metadata_paths: List):
     """Reads and transforms dataset metadata from TSV format to JSON"""
+    errored = False
     metadata = {}
     for i, line in enumerate(fileinput.input(metadata_paths)):
         fields = line.rstrip().split('\t')
@@ -123,11 +125,14 @@ def transform_dataset_metadata(metadata_paths: List):
             add_metadata_item(catalog_key, value, metadata)
         except Exception as e:
             lgr.error(msg=f'Error encountered on line {i + 1}', exc_info=e)
+            errored = True
     # Now we have the metadata in an almost catalog-valid format, but still to do:
     # - Some fields still require some wrangling to be catalog-valid
     # - Some non-content-specific fields still need to be added
     metadata = map_to_catalog(metadata)
     print(json.dumps(metadata))
+    if errored:
+        sys.exit(1)
 
 
 def parse_dataset_columns(key: str, value: list, item_schema: dict):
