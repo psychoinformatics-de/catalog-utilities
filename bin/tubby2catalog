@@ -109,9 +109,7 @@ def main(metadata_paths: List, metadata_type: str):
 def transform_dataset_metadata(metadata_paths: List):
     """Reads and transforms dataset metadata from TSV format to JSON"""
     metadata = {}
-    i = 0
-    for line in fileinput.input(metadata_paths):
-        i+=1
+    for i, line in enumerate(fileinput.input(metadata_paths)):
         l = line.rstrip().split('\t')
         try:
             key = l[0]
@@ -119,12 +117,12 @@ def transform_dataset_metadata(metadata_paths: List):
             item_schema = dataset_schema.get(key, None)
             if item_schema is None:
                 # skip for now. TODO: different handling?
-                lgr.info(msg=f'non-recognized field encountered in line {i}: {key}')
+                lgr.info(msg=f'non-recognized field encountered in line {i + 1}: {key}')
                 continue
             catalog_key, value = parse_dataset_columns(key, l[1:], item_schema)
             add_metadata_item(catalog_key, value, metadata)
         except Exception as e:
-            lgr.error(msg=f'Error encountered on line {i}', exc_info=e)
+            lgr.error(msg=f'Error encountered on line {i + 1}', exc_info=e)
     # Now we have the metadata in an almost catalog-valid format, but still to do:
     # - Some fields still require some wrangling to be catalog-valid
     # - Some non-content-specific fields still need to be added
