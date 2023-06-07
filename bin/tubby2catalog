@@ -110,16 +110,16 @@ def transform_dataset_metadata(metadata_paths: List):
     """Reads and transforms dataset metadata from TSV format to JSON"""
     metadata = {}
     for i, line in enumerate(fileinput.input(metadata_paths)):
-        l = line.rstrip().split('\t')
+        fields = line.rstrip().split('\t')
         try:
-            key = l[0]
+            key = fields[0]
             # get item schema and handle non-recognized keys
             item_schema = dataset_schema.get(key, None)
             if item_schema is None:
                 # skip for now. TODO: different handling?
                 lgr.info(msg=f'non-recognized field encountered in line {i + 1}: {key}')
                 continue
-            catalog_key, value = parse_dataset_columns(key, l[1:], item_schema)
+            catalog_key, value = parse_dataset_columns(key, fields[1:], item_schema)
             add_metadata_item(catalog_key, value, metadata)
         except Exception as e:
             lgr.error(msg=f'Error encountered on line {i + 1}', exc_info=e)
