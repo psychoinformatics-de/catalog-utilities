@@ -3,10 +3,11 @@
 
 """
 from datetime import datetime
+import fileinput
 import json
 import logging
-from pathlib import Path
 import subprocess
+from typing import List
 
 lgr = logging.getLogger('catalog-utilities')
 
@@ -93,60 +94,42 @@ file_schema = {
 }
 
 
-def main(metadata: str, metadata_type: str):
+def main(metadata_paths: List, metadata_type: str):
     """Main function called with command line arguments
-    
-    Checks a few basic constraints and then calls the 
+
+    Checks a few basic constraints and then calls the
     relevant metadata transformation method (dataset | file)"""
-    metadata_path = Path(metadata).resolve()
-    # some basic checks
-    if not metadata_path.exists():
-        raise ValueError(f'No file available at {metadata_path}')
-    if metadata_path.suffix != '.tsv' :
-        raise ValueError(f'Cannot operate on a non-TSV file: {metadata_path}')
-    # output to be saved at same path as input, only with a different extension
-    output_path = metadata_path.with_suffix('.jsonl')
     # call the appropriate method to transform metadata
     if metadata_type == 'dataset':
-        transform_dataset_metadata(
-            input_path=metadata_path,
-            output_path=output_path,
-        )
+        transform_dataset_metadata(metadata_paths)
     else:
-        transform_file_metadata(
-            input_path=metadata_path,
-            output_path=output_path,
-        )
+        transform_file_metadata(metadata_paths)
 
 
-def transform_dataset_metadata(input_path, output_path):
+def transform_dataset_metadata(metadata_paths: List):
     """Reads and transforms dataset metadata from TSV format to JSON"""
     metadata = {}
     i = 0
-    with open(input_path) as file:
-        for line in file:
-            i+=1
-            l = line.rstrip().split('\t')
-            try:
-                key = l[0]
-                # get item schema and handle non-recognized keys
-                item_schema = dataset_schema.get(key, None)
-                if item_schema is None:
-                    # skip for now. TODO: different handling?
-                    lgr.info(msg=f'non-recognized field encountered in line {i}: {key}')
-                    continue
-                catalog_key, value = parse_dataset_columns(key, l[1:], item_schema)
-                add_metadata_item(catalog_key, value, metadata)
-            except Exception as e:
-                lgr.error(msg=f'Error encountered on line {i}', exc_info=e)
+    for line in fileinput.input(metadata_paths):
+        i+=1
+        l = line.rstrip().split('\t')
+        try:
+            key = l[0]
+            # get item schema and handle non-recognized keys
+            item_schema = dataset_schema.get(key, None)
+            if item_schema is None:
+                # skip for now. TODO: different handling?
+                lgr.info(msg=f'non-recognized field encountered in line {i}: {key}')
+                continue
+            catalog_key, value = parse_dataset_columns(key, l[1:], item_schema)
+            add_metadata_item(catalog_key, value, metadata)
+        except Exception as e:
+            lgr.error(msg=f'Error encountered on line {i}', exc_info=e)
     # Now we have the metadata in an almost catalog-valid format, but still to do:
     # - Some fields still require some wrangling to be catalog-valid
     # - Some non-content-specific fields still need to be added
     metadata = map_to_catalog(metadata)
     print(json.dumps(metadata))
-    # Finally write json line to file
-    with open(output_path, 'w') as outfile:
-        json.dump(metadata, outfile)
 
 
 def parse_dataset_columns(key: str, value: list, item_schema: dict):
@@ -349,26 +332,24 @@ def new_file_meta_item(ds_id, ds_version, filepath, content_bytesize = None, url
     }
     return meta_item
 
+
 # -----
 
 if __name__ == '__main__':
     import argparse
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        '-m', '--metadata', metavar='METADATA', required=True,
-        help="Path to the metadata file. "
-        "Metadata can be provided for datasets or files "
-        "and should contain content that adheres to the schema "
-        "provided at ..."
+        'metadata', metavar='PATH', nargs='*',
+        help="paths to files to read metadata from, "
+        "if metadata should not be read from STDIN."
     )
     p.add_argument(
-        '-t', '--type', metavar='TYPE', required=True,
+        '-t', '--type', required=True,
         choices=['dataset', 'file'],
-        help="The type of metadata file supplied."
-        "The value should be either 'dataset' or 'file.'"
+        help="type of metadata supplied",
     )
     args = p.parse_args()
     main(
-        metadata=args.metadata,
+        metadata_paths=args.metadata if len(args.metadata) else ['-'],
         metadata_type=args.type,
     )
