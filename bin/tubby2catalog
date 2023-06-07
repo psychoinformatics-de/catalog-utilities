@@ -239,8 +239,7 @@ def get_dataset_version(input):
     # Version is required for catalog, but not for incoming metadata
     # TODO: what to do here?
     # For now, just return 'latest' if not provided
-    v = input.get('dataset_version', None)
-    return str(v) if v is not None else 'latest'
+    return str(input.get('dataset_version', 'latest'))
 
 
 def get_author(author):
@@ -253,12 +252,12 @@ def get_author(author):
     }] if orcid is not None else []
     # TODO: where to put 'affiliations', which is part of incoming metadata
     return {
-      'name': full_name if full_name is not None else '',
-      'givenName': '',
-      'familyName': '',
-      'email': email if email is not None else '',
-      'honorificSuffix': '',
-      'identifiers': identifiers
+        'name': full_name or '',
+        'givenName': '',
+        'familyName': '',
+        'email': email or '',
+        'honorificSuffix': '',
+        'identifiers': identifiers
     }
 
 
