@@ -65,13 +65,7 @@ dataset_schema = {
         'type': 'list',
         'required': False,
         'case': 'multiple',
-        'columns': ['name','value'],
-    },
-    'sfb1451': {
-        'type': 'list',
-        'required': False,
-        'case': 'multiple',
-        'columns': ['name','value'],
+        'columns': ['name', 'value'],
     },
 }
 
@@ -86,7 +80,6 @@ dataset_catalog_mapping = {
     'publication': 'publications',
     'keywords': 'keywords',
     'property': 'top_display',
-    'sfb1451': 'additional_display'
 }
 # and the inverse
 catalog_dataset_mapping = {v: k for k, v in dataset_catalog_mapping.items()}
@@ -114,15 +107,13 @@ def transform_dataset_metadata(metadata_paths: List):
     for i, line in enumerate(fileinput.input(metadata_paths)):
         fields = line.rstrip().split('\t')
         try:
-            key = fields[0]
+            row_key = fields[0]
             # get item schema and handle non-recognized keys
-            item_schema = dataset_schema.get(key, None)
-            if item_schema is None:
-                # skip for now. TODO: different handling?
-                lgr.info(msg=f'non-recognized field encountered in line {i + 1}: {key}')
-                continue
-            catalog_key, value = parse_dataset_columns(key, fields[1:], item_schema)
-            add_metadata_item(catalog_key, value, metadata)
+            item_schema = dataset_schema.get(
+                row_key, dataset_schema['property'])
+            catalog_key, value = parse_dataset_columns(
+                row_key, fields[1:], item_schema)
+            add_metadata_item(catalog_key, row_key, value, metadata)
         except Exception as e:
             lgr.error(msg=f'Error encountered on line {i + 1}', exc_info=e)
             errored = True
@@ -142,7 +133,7 @@ def parse_dataset_columns(key: str, value: list, item_schema: dict):
     # definition encoded in the dataset_schema dict.
     if len(value) > 1:
         # handle the case where the field has values in multiple columns
-        catalog_key = dataset_catalog_mapping[key]
+        catalog_key = dataset_catalog_mapping.get(key, 'additional_display')
         columns = item_schema.get('columns', None)
         if columns is None:
             # this is interpreted as all columns having the same
@@ -160,21 +151,34 @@ def parse_dataset_columns(key: str, value: list, item_schema: dict):
         return dataset_catalog_mapping[key], value[0]
 
 
-def add_metadata_item(key, value, metadata):
+def add_metadata_item(catalog_key, row_key, value, metadata):
     """"""
     # If the field has already been supplied, the default
     # is to assume that it is intentionally supplied multiple
     # times, i.e. that it will eventually be an element in a list
     # If this is undesireable, the 'case' property from the schema
     # could be incorporated
-    # print(f'key: {key}; value: {value}; metadata {metadata}')
-    if key in metadata.keys():
-        if not isinstance(metadata[key], list):
-            # first make sure that the existing value is a list
-            metadata[key] = [metadata[key]]
-        metadata[key].append(value)
+    existing = metadata.get(catalog_key)
+    if catalog_key == 'additional_display':
+        # special handling, because we need to capture the property category
+        # from the row_key
+        if existing is None:
+            value = {row_key: {value['name']: value['value']}}
+        else:
+            v = existing.get(row_key, {})
+            v[value['name']] = value['value']
+            existing[row_key] = v
     else:
-        metadata[key] = value
+        if existing is not None:
+            if not isinstance(existing, list):
+                # make sure that the existing value is a list
+                existing = [existing]
+            existing.append(value)
+
+    if existing:
+        metadata[catalog_key] = existing
+    else:
+        metadata[catalog_key] = value
 
 
 def map_to_catalog(metadata):
@@ -203,11 +207,7 @@ def map_to_catalog(metadata):
                     get_author(author)
                 )
         elif key == 'additional_display':
-            if key not in meta_item.keys():
-                meta_item[key] = []
-            meta_item[key].append(
-                get_additional_display(metadata[key])
-            )
+            meta_item[key] = get_additional_display(metadata[key])
         elif key == 'publications':
             if key not in meta_item.keys():
                 meta_item[key] = []
@@ -263,13 +263,11 @@ def get_author(author):
 
 
 def get_additional_display(display):
-    content = {}
-    for d in display:
-        content[d['name']] = d['value']
-    return {
-      'name': catalog_dataset_mapping['additional_display'],
-      'content': content,
-    }
+    return [
+        {'name': category, 'content': mappings}
+        for category, mappings in display.items()
+    ]
+
 
 def get_publication(publication):
     # catalog publications expect: title, doi, authors
